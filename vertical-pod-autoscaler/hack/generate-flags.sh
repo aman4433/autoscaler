@@ -39,22 +39,67 @@ extract_flags() {
     echo "| Flag | Default | Description |"
     echo "|---------|---------|-------------|"
 
-    $binary --help 2>&1 | grep -E '^\s*-' | while read -r line; do
-        if [[ $line == *"-v, --v Level"* ]]; then
-            # Special handling for the -v, --v Level flag
-            flag="v"
-            default=$(echo "$line" | sed -n 's/.*default: \([0-9]\{1,\}\).*/\1/p')
-            description="Set the log level verbosity"
-        else
-            flag=$(echo "$line" | awk '{print $1}' | sed 's/^-*//;s/=.*$//')
-            default=$(echo "$line" | sed -n 's/.*default \([^)]*\).*/\1/p')
-            description=$(echo "$line" | sed -E 's/^\s*-[^[:space:]]+ [^[:space:]]+ //;s/ \(default.*\)//')
-            description=$(echo "$description" | sed -E "s/^--?${flag}[[:space:]]?//")
-        fi
-        
-        echo "| \`--${flag}\` | ${default:-} | ${description} |"
-    done
-    echo
+$binary --help 2>&1 | awk '
+  BEGIN {
+    FS=""
+    print "| Flag | Default | Description |"
+    print "|------|---------|-------------|"
+  }
+  
+  /^[ \t]*--?[^ =]+/ {
+    if (flag != "") {
+      print_flag()
+    }
+    flag = ""
+    default_val = ""
+    desc = ""
+    
+    # Extract flag
+    match($0, /--?[^ =]+/)
+    flag = substr($0, RSTART+2, RLENGTH-2)
+    
+    # Extract default
+    if (match($0, /\(default:?[^\)]*\)/)) {
+      default_val = substr($0, RSTART+9, RLENGTH-10)
+    }
+    
+    # Extract description after flag and default
+    desc_start = RSTART + RLENGTH
+    desc = substr($0, RLENGTH + index($0, flag) + 3)
+    
+    # Save line indentation for continuation lines
+    indent = ""
+    if (match($0, /^[ \t]+/)) {
+      indent = substr($0, RSTART, RLENGTH)
+    }
+    
+    next
+  }
+  
+  /^[ \t]+/ {
+    # continuation of description, keep indentation
+    desc = desc "\n" $0
+    next
+  }
+  
+  function print_flag() {
+    # Remove leading/trailing whitespace from desc
+    gsub(/^[ \t]+/, "", desc)
+    gsub(/[ \t]+$/, "", desc)
+    
+    # Escape pipe | chars in desc for markdown table safety
+    gsub(/\|/, "\\|", desc)
+    
+    printf("| `%s` | %s | %s |\n", flag, default_val, desc)
+  }
+  
+  END {
+    if (flag != "") {
+      print_flag()
+    }
+  }
+'
+
 }
 # Build components
 pushd "${SCRIPT_ROOT}" >/dev/null
