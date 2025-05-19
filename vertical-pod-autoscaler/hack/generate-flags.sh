@@ -27,33 +27,69 @@ DEFAULT_TAG="1.3.1"
 extract_flags() {
     local binary=$1
     local component=$2
-    
+
     if [ ! -f "$binary" ]; then
         echo "Error: Binary not found for ${component} at ${binary}"
         return 1
     fi
-    
+
     echo "# What are the parameters to VPA ${component}?"
     echo "This document is auto-generated from the flag definitions in the VPA ${component} code."
     echo
     echo "| Flag | Default | Description |"
-    echo "|---------|---------|-------------|"
+    echo "|------|---------|-------------|"
 
-    $binary --help 2>&1 | grep -E '^\s*-' | while read -r line; do
-        if [[ $line == *"-v, --v Level"* ]]; then
-            # Special handling for the -v, --v Level flag
-            flag="v"
-            default=$(echo "$line" | sed -n 's/.*default: \([0-9]\{1,\}\).*/\1/p')
-            description="Set the log level verbosity"
-        else
-            flag=$(echo "$line" | awk '{print $1}' | sed 's/^-*//;s/=.*$//')
-            default=$(echo "$line" | sed -n 's/.*default \([^)]*\).*/\1/p')
-            description=$(echo "$line" | sed -E 's/^\s*-[^[:space:]]+ [^[:space:]]+ //;s/ \(default.*\)//')
-            description=$(echo "$description" | sed -E "s/^--?${flag}[[:space:]]?//")
-        fi
-        
-        echo "| \`--${flag}\` | ${default:-} | ${description} |"
-    done
+    $binary --help 2>&1 | awk '
+    BEGIN {
+        collecting = 0
+        flag = ""
+        desc = ""
+        default = ""
+    }
+
+    /^[[:space:]]*-{1,2}[a-zA-Z0-9_.-]+/ {
+        if (collecting) {
+            gsub(/\|/, "\\|", desc)
+            print "| `" flag "` | " default " | " desc " |"
+        }
+        collecting = 1
+        line = $0
+
+        # Extract flag name
+        sub(/^[[:space:]]*/, "", line)
+        split(line, parts, " ")
+        flag = parts[1]
+        sub(/^--*/, "", flag)
+
+        # Try to get default from line
+        match(line, /\(default[=: ]*[^)]*\)/)
+        if (RSTART > 0) {
+            default = substr(line, RSTART+8, RLENGTH-9)
+        } else {
+            default = ""
+        }
+
+        # Initial description (rest of line after flag)
+        desc = line
+        sub(/^[[:space:]]*-{1,2}[a-zA-Z0-9_.-]+[[:space:]]*/, "", desc)
+        sub(/\(default[=: ]*[^)]*\)/, "", desc)
+        next
+    }
+
+    /^[[:space:]]+/ {
+        if (collecting) {
+            line = $0
+            gsub(/^[[:space:]]+/, "", line)
+            desc = desc "<br>" line
+        }
+    }
+
+    END {
+        if (collecting) {
+            gsub(/\|/, "\\|", desc)
+            print "| `" flag "` | " default " | " desc " |"
+        }
+    }'
     echo
 }
 # Build components
