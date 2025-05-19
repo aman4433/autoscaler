@@ -61,15 +61,16 @@ extract_flags() {
         flag = parts[1]
         sub(/^--*/, "", flag)
 
-        # Try to get default from line
-        match(line, /\(default[=: ]*[^)]*\)/)
-        if (RSTART > 0) {
-            default = substr(line, RSTART+8, RLENGTH-9)
-        } else {
-            default = ""
+        # Extract default value
+        default = ""
+        if (match(line, /\(default[=: ]*[^)]*\)/)) {
+            match_str = substr(line, RSTART, RLENGTH)
+            gsub(/.*default[=: ]*/, "", match_str)
+            gsub(/\)$/, "", match_str)
+            default = match_str
         }
 
-        # Initial description (rest of line after flag)
+        # Extract description
         desc = line
         sub(/^[[:space:]]*-{1,2}[a-zA-Z0-9_.-]+[[:space:]]*/, "", desc)
         sub(/\(default[=: ]*[^)]*\)/, "", desc)

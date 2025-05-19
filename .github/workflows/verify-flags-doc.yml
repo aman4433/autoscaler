@@ -1,0 +1,32 @@
+name: Verify Flags Doc Extraction
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-flags-doc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build binaries
+        run: |
+          for component in admission-controller recommender updater; do
+            echo "Building $component..."
+            cd pkg/$component
+            go build -o $component
+            cd -
+          done
+
+      - name: Run awk test
+        run: |
+          # Replace with the updated awk version block
+          ./hack/generate-flags.sh
+
+
