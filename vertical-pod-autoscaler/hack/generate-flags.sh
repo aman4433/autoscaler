@@ -40,51 +40,49 @@ extract_flags() {
     echo "|------|---------|-------------|"
 
     $binary --help 2>&1 | awk '
-    BEGIN {
-        collecting = 0
-        flag = ""
-        desc = ""
-        default = ""
-    }
-
-    /^[[:space:]]*-{1,2}[a-zA-Z0-9_.-]+/ {
-        if (collecting) {
-            gsub(/\|/, "\\|", desc)
-            print "| `" flag "` | " default " | " desc " |"
-        }
-        collecting = 1
-        line = $0
-
-        # Extract flag name
-        sub(/^[[:space:]]*/, "", line)
-        split(line, parts, " ")
-        flag = parts[1]
-        sub(/^--*/, "", flag)
-
-        # Extract default value
-        default = ""
-        if (match(line, /\(default[=: ]*[^)]*\)/)) {
-            match_str = substr(line, RSTART, RLENGTH)
-            gsub(/.*default[=: ]*/, "", match_str)
-            gsub(/\)$/, "", match_str)
-            default = match_str
+    {
+        if (NR == 1) {
+            collecting = 0
+            flag = ""
+            desc = ""
+            default = ""
         }
 
-        # Extract description
-        desc = line
-        sub(/^[[:space:]]*-{1,2}[a-zA-Z0-9_.-]+[[:space:]]*/, "", desc)
-        sub(/\(default[=: ]*[^)]*\)/, "", desc)
-        next
-    }
-
-    /^[[:space:]]+/ {
-        if (collecting) {
+        if ($0 ~ /^[[:space:]]*-{1,2}[a-zA-Z0-9_.-]+/) {
+            if (collecting) {
+                gsub(/\|/, "\\|", desc)
+                print "| `" flag "` | " default " | " desc " |"
+            }
+            collecting = 1
             line = $0
-            gsub(/^[[:space:]]+/, "", line)
-            desc = desc "<br>" line
-        }
-    }
 
+            sub(/^[[:space:]]*/, "", line)
+            split(line, parts, " ")
+            flag = parts[1]
+            sub(/^--*/, "", flag)
+
+            match(line, /\(default[=: ]*[^)]*\)/)
+            if (RSTART > 0) {
+                default = substr(line, RSTART+8, RLENGTH-9)
+            } else {
+                default = ""
+            }
+
+            desc = line
+            sub(/^[[:space:]]*-{1,2}[a-zA-Z0-9_.-]+[[:space:]]*/, "", desc)
+            sub(/\(default[=: ]*[^)]*\)/, "", desc)
+            next
+        }
+
+        if ($0 ~ /^[[:space:]]+/) {
+            if (collecting) {
+                line = $0
+                gsub(/^[[:space:]]+/, "", line)
+                desc = desc "<br>" line
+            }
+        }
+
+    }
     END {
         if (collecting) {
             gsub(/\|/, "\\|", desc)
